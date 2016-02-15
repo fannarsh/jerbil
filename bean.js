@@ -9,27 +9,47 @@ import responseSpecs from './response-spec'
 const CRLF = new Buffer('\r\n')
 
 class Bean extends process.EventEmitter {
-  constructor(tube) {
+  constructor(port, host) {
     super()
-    this.tube = tube || 'test'
+    this.port = port || 11300
+    this.host = host || '127.0.0.1'
+    this.tube = undefined
+    this.disconnected = false
+    this.setMaxListeners(0)
     this.queue = new Queue()
   }
 
-  connect(...args) {
-    let callback = args.pop()
-    let port = args.shift() || 11300
-    let host = args.shift() || '127.0.0.1'
+  connect(callback = function() {}) {
+    this.conn = net.createConnection(this.port, this.host)
+    this.conn.setKeepAlive(true)
 
-    this.conn = net.createConnection(port, host, callback)
-    this.conn.on('error', (err) => this.emit('error', err))
+    let handleConnect = (err) => {
+      if (err) throw new Error('Failed to reassign tube during reconnect')
+      this.emit('connect')
+      setImmediate(callback)
+    }
+
+    this.conn.on('connect', () => {
+      if (!this.tube) return handleConnect()
+
+      // Reassign tube automatically
+      let args = ['use', this.tube]
+      args[Symbol.for('priority')] = true
+      this.send(args, handleConnect)
+    })
     this.conn.on('data', (data) => this.handle(data))
+    this.conn.on('close', () => !this.disconnected && this.connect())
   }
 
   disconnect(callback = function() {}) {
+    if (this.disconnected) return callback()
+
+    this.disconnected = true
+
     let err = null
     try { this.conn.destroy() } catch (e) { err = e }
+
     callback(err)
-    // Close out the queue?
   }
 
   handle(responseData) {
@@ -78,6 +98,10 @@ class Bean extends process.EventEmitter {
   }
 
   send(args, callback) {
+    if (this.disconnected) {
+      throw new Error('Connection has been closed')
+    }
+
     // Validate args
     let command = args[0]
     let responseSpec = responseSpecs[command]
@@ -99,8 +123,15 @@ class Bean extends process.EventEmitter {
 
     // console.log('<<SENDING ', JSON.stringify(message.toString()))
 
-    this.queue.push(Object.assign({command, callback}, responseSpec))
-    this.conn.write(message)
+    if (args[Symbol.for('priority')]) {
+      // Prioritizing message
+      this.queue.unshift(Object.assign({command, callback}, responseSpec))
+    } else {
+      this.queue.push(Object.assign({command, callback}, responseSpec))
+    }
+
+    if (this.conn.writable) this.conn.write(message)
+    else this.once('connect', () => this.conn.write(message))
   }
 
   /* General commands*/
@@ -153,8 +184,8 @@ class Bean extends process.EventEmitter {
 }
 
 export class Worker extends Bean {
-  constructor(tube) {
-    super(tube)
+  constructor() {
+    super()
   }
 
   /* Worker commands*/
@@ -186,14 +217,22 @@ export class Worker extends Bean {
 }
 
 export class Producer extends Bean {
-  constructor(tube) {
-    super(tube)
+  constructor() {
+    super()
   }
 
   /* Producer commands*/
 
   use(tube, callback) {
-    this.send(['use', tube], callback)
+    this.send(['use', tube], (err, tube) => {
+      if (err) {
+        callback.call(this, err)
+      } else {
+        // Stash tube for reconnects
+        this.tube = tube
+        callback.call(this, err, tube)
+      }
+    })
   }
 
   // put PRIORITY DELAY TTR BODY_LENGTH\r\nBODY\r\n
@@ -210,3 +249,4 @@ export class Producer extends Bean {
     return this.send(['put', ...args, body], callback)
   }
 }
+
