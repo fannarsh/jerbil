@@ -8,7 +8,7 @@ import responseSpecs from './response-spec'
 
 const CRLF = new Buffer('\r\n')
 
-class Bean extends process.EventEmitter {
+export class GenericBean extends process.EventEmitter {
   constructor(port, host) {
     super()
     this.port = port || 11300
@@ -57,9 +57,8 @@ class Bean extends process.EventEmitter {
     let separatorIndex = responseData.indexOf(CRLF)
     let head = responseData.slice(0, separatorIndex).toString()
 
-    if (message === undefined) {
+    if (message === undefined)
       throw new Error('Response handler missing: ${head}')
-    }
 
     // console.log('>>RECEIVED:', JSON.stringify(responseData.toString()))
 
@@ -75,6 +74,7 @@ class Bean extends process.EventEmitter {
 
     if (message.responseBody) {
       let bytesLength = Number(head.pop())
+
       let start = separatorIndex + CRLF.length
       let body = responseData.slice(start, start + bytesLength)
 
@@ -98,17 +98,17 @@ class Bean extends process.EventEmitter {
   }
 
   send(args, callback) {
-    if (this.disconnected) {
+    if (this.disconnected)
       throw new Error('Connection has been closed')
-    }
+    if (typeof callback !== 'function')
+      throw new Error('Malformed arguments')
 
     // Validate args
     let command = args[0]
     let responseSpec = responseSpecs[command]
 
-    if (responseSpec === undefined) {
+    if (responseSpec === undefined)
       throw Error(`Unexpected command: ${command}`)
-    }
 
     let message
 
@@ -130,7 +130,7 @@ class Bean extends process.EventEmitter {
       this.queue.push(Object.assign({command, callback}, responseSpec))
     }
 
-    if (this.conn.writable) this.conn.write(message)
+    if (this.conn && this.conn.writable) this.conn.write(message)
     else this.once('connect', () => this.conn.write(message))
   }
 
@@ -183,9 +183,9 @@ class Bean extends process.EventEmitter {
   }
 }
 
-export class Worker extends Bean {
-  constructor() {
-    super()
+export class Worker extends GenericBean {
+  constructor(port, host) {
+    super(port, host)
   }
 
   /* Worker commands*/
@@ -194,13 +194,13 @@ export class Worker extends Bean {
     this.send(['reserve'], callback)
   }
   reserveWithTimeout(timeout, callback) {
-    this.send(['reserve-with-timeout'], timeout, callback)
+    this.send(['reserve-with-timeout', timeout], callback)
   }
   release(job, priority, delay, callback) {
     this.send(['release', job, priority, delay], callback)
   }
   bury(job, priority, callback) {
-    this.send(['bury', job], callback)
+    this.send(['bury', job, priority], callback)
   }
   delete(job, callback) {
     this.send(['delete', job], callback)
@@ -216,9 +216,9 @@ export class Worker extends Bean {
   }
 }
 
-export class Producer extends Bean {
-  constructor() {
-    super()
+export class Producer extends GenericBean {
+  constructor(port, host) {
+    super(port, host)
   }
 
   /* Producer commands*/
@@ -249,4 +249,3 @@ export class Producer extends Bean {
     return this.send(['put', ...args, body], callback)
   }
 }
-

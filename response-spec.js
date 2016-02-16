@@ -85,7 +85,7 @@ module.exports = {
     responseBody: 'yaml'
   },
   'list-tube-used': {
-    expectedResponse: 'OK',
+    expectedResponse: 'USING',
     responseHead: [String]
   },
   'pause-tube': {
