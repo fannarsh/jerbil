@@ -2,11 +2,11 @@
 
 let net = require('net')
 let assert = require('assert')
+let msgpack = require('msgpack')
+let yaml = require('js-yaml')
 let bean = require('./')
 
 let CRLF = new Buffer('\r\n')
-let msgpack = require('msgpack')
-let yaml = require('js-yaml')
 
 let fixtures = {
   NOT_FOUND: new Buffer('NOT_FOUND\r\n'),
@@ -68,7 +68,6 @@ let fixtures = {
 
   USING: new Buffer('USING test\r\n'),
   INSERTED: new Buffer('INSERTED 1\r\n')
-
 }
 
 suite('generic', function() {
@@ -105,7 +104,7 @@ suite('generic', function() {
       })
     })
     client = new bean.GenericBean(TEST_PORT)
-    server.listen(9876, () => client.connect(done))
+    server.listen(TEST_PORT, () => client.connect(done))
   })
 
   teardown(function(done) {
@@ -243,7 +242,7 @@ suite('worker', function() {
       })
     })
     client = new bean.Worker(TEST_PORT)
-    server.listen(9876, () => client.connect(done))
+    server.listen(TEST_PORT, () => client.connect(done))
   })
 
   teardown(function(done) {
@@ -305,6 +304,10 @@ suite('producer', function() {
   responseMap.set(/^put 1 2 3 6\r\n/, fixtures.INSERTED)
   responseMap.set(/^put 1 2 3 15\r\n/, fixtures.INSERTED)
 
+  function getBody(data) {
+    return msgpack.unpack(data.slice(data.indexOf(CRLF) + CRLF.length, -CRLF.length))
+  }
+
   setup(function(done) {
     server = net.createServer((c) => {
       c.on('data', (data) => {
@@ -316,7 +319,7 @@ suite('producer', function() {
       })
     })
     client = new bean.Producer(TEST_PORT)
-    server.listen(9876, () => client.connect(done))
+    server.listen(TEST_PORT, () => client.connect(done))
   })
 
   teardown(function(done) {
@@ -338,22 +341,18 @@ suite('producer', function() {
     })
   })
   test('put (complex job)', function(done) {
-    let checkedBody = false
-    client.once('message', (data) => {
-      let ind = data.indexOf(CRLF)
-      let body = data.slice(ind + CRLF.length, -CRLF.length)
-      assert.deepEqual(msgpack.unpack(body), {
-        a: 10,
-        b: '20',
-        c: [1,2,3]
-      })
-      checkedBody = true
-    })
     let job = {
       a: 10,
       b: '20',
       c: [1,2,3]
     }
+
+    let checkedBody = false
+    client.once('message', (data) => {
+      assert.deepEqual(getBody(data), job)
+      checkedBody = true
+    })
+
     client.put(job, {priority: 1, delay: 2, ttr: 3}, (err, jobId) => {
       assert.ifError(err)
       assert.strictEqual(jobId, '1')
