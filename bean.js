@@ -20,6 +20,7 @@ export class GenericBean extends process.EventEmitter {
 
   connect(callback = function() {}) {
     this.conn = net.createConnection(this.port, this.host)
+    this.conn.setKeepAlive(true)
     this.conn.on('connect', () => this.handleConnect(callback))
     this.conn.on('data', (data) => this.handleResponse(data))
     this.conn.on('close', () => !this.disconnected && this.connect())
