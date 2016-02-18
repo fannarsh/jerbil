@@ -70,49 +70,56 @@ let fixtures = {
   INSERTED: new Buffer('INSERTED 1\r\n')
 }
 
-suite('generic', function() {
-  let TEST_PORT = 9876
-  let server, client
+let TEST_PORT = 9876
+function makeSetup(scope, cstr, responseMap) {
+  return function(callback) {
+    scope.client = new cstr(TEST_PORT)
 
-  let responseMap = new Map()
-  responseMap.set(/^peek 1\r\n$/, fixtures.FOUND)
-  responseMap.set(/^peek 2\r\n$/, fixtures.NOT_FOUND)
-  responseMap.set(/^peek 3\r\n$/, fixtures.FOUND_COMPLEX)
-  responseMap.set(/^peek-(ready|buried|delayed)\r\n$/, fixtures.FOUND)
-
-  responseMap.set(/^kick 10\r\n$/, fixtures.KICKED)
-  responseMap.set(/^kick-job 1\r\n$/, fixtures.KICKED_JOB)
-
-  responseMap.set(/^stats\r\n/, fixtures.STATS)
-  responseMap.set(/^stats-job 1\r\n$/, fixtures.STATS_JOB)
-  responseMap.set(/^stats-tube test\r\n$/, fixtures.STATS_TUBE)
-
-  responseMap.set(/^list-tubes\r\n/, fixtures.LIST_TUBES)
-  responseMap.set(/^list-tubes-watched\r\n$/, fixtures.LIST_TUBES_WATCHED)
-  responseMap.set(/^list-tube-used\r\n$/, fixtures.LIST_TUBE_USED)
-
-  responseMap.set(/^pause-tube greeting 100\r\n$/, fixtures.PAUSE_TUBE)
-
-  setup(function(done) {
-    server = net.createServer((c) => {
-      c.setEncoding('ascii')
+    scope.server = net.createServer((c) => {
       c.on('data', (data) => {
+        scope.client.emit('message', data)
+
         for (let [reg, res] of responseMap) {
           if (reg.test(data)) return c.write(res)
         }
+
         throw new Error(`Unexpected message: ${data}`)
       })
     })
-    client = new bean.GenericBean(TEST_PORT)
-    server.listen(TEST_PORT, () => client.connect(done))
-  })
+
+    scope.server.listen(TEST_PORT, () => scope.client.connect(callback))
+  }
+}
+
+suite('generic', function() {
+  let $ = {}
+
+  setup(makeSetup($, bean.GenericBean, new Map([
+    [/^peek 1\r\n$/, fixtures.FOUND],
+    [/^peek 2\r\n$/, fixtures.NOT_FOUND],
+    [/^peek 3\r\n$/, fixtures.FOUND_COMPLEX],
+    [/^peek-(ready|buried|delayed)\r\n$/, fixtures.FOUND],
+
+    [/^kick 10\r\n$/, fixtures.KICKED],
+    [/^kick-job 1\r\n$/, fixtures.KICKED_JOB],
+
+    [/^stats\r\n/, fixtures.STATS],
+    [/^stats-job 1\r\n$/, fixtures.STATS_JOB],
+    [/^stats-tube test\r\n$/, fixtures.STATS_TUBE],
+
+    [/^list-tubes\r\n/, fixtures.LIST_TUBES],
+    [/^list-tubes-watched\r\n$/, fixtures.LIST_TUBES_WATCHED],
+    [/^list-tube-used\r\n$/, fixtures.LIST_TUBE_USED],
+
+    [/^pause-tube greeting 100\r\n$/, fixtures.PAUSE_TUBE],
+  ])))
 
   teardown(function(done) {
-    client.disconnect(() => server.close(done))
+    $.client.disconnect(() => $.server.close(done))
   })
 
   test('peek', function (done) {
-    client.peek('1', (err, job, body) => {
+    $.client.peek('1', (err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert(body, 'greeting')
@@ -120,14 +127,14 @@ suite('generic', function() {
     })
   })
   test('peek (not found)', function(done) {
-    client.peek('2', (err) => {
+    $.client.peek('2', (err) => {
       assert(err)
       assert.strictEqual(err.message, 'NOT_FOUND')
       done()
     })
   })
   test('peek (complex job)', function (done) {
-    client.peek('3', (err, job, body) => {
+    $.client.peek('3', (err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '3')
       assert.deepEqual(body, {
@@ -139,7 +146,7 @@ suite('generic', function() {
     })
   })
   test('peek-ready', function(done) {
-    client.peekReady((err, job, body) => {
+    $.client.peekReady((err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert.strictEqual(body, 'greeting')
@@ -147,7 +154,7 @@ suite('generic', function() {
     })
   })
   test('peek-buried', function(done) {
-    client.peekBuried((err, job, body) => {
+    $.client.peekBuried((err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert.strictEqual(body, 'greeting')
@@ -155,7 +162,7 @@ suite('generic', function() {
     })
   })
   test('peek-delayed', function(done) {
-    client.peekDelayed((err, job, body) => {
+    $.client.peekDelayed((err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert.strictEqual(body, 'greeting')
@@ -164,32 +171,32 @@ suite('generic', function() {
   })
 
   test('kick', function(done) {
-    client.kick(10, (err, kicked) => {
+    $.client.kick(10, (err, kicked) => {
       assert.ifError(err)
       assert.strictEqual(kicked, 10)
       done()
     })
   })
   test('kick-job', function(done) {
-    client.kickJob('1', done)
+    $.client.kickJob('1', done)
   })
 
   test('stats', function(done) {
-    client.stats((err, stats) => {
+    $.client.stats((err, stats) => {
       assert.ifError(err)
       assert.deepEqual(stats, {'cmd-put': 3})
       done()
     })
   })
   test('stats-tube', function(done) {
-    client.statsTube('test', (err, stats) => {
+    $.client.statsTube('test', (err, stats) => {
       assert.ifError(err)
       assert.deepEqual(stats, {'cmd-put': 2})
       done()
     })
   })
   test('stats-job', function(done) {
-    client.statsJob('1', (err, stats) => {
+    $.client.statsJob('1', (err, stats) => {
       assert.ifError(err)
       assert.deepEqual(stats, {'cmd-put': 1})
       done()
@@ -197,14 +204,14 @@ suite('generic', function() {
   })
 
   test('list-tubes', function(done) {
-    client.listTubes((err, tubes) => {
+    $.client.listTubes((err, tubes) => {
       assert.ifError(err)
       assert.deepEqual(tubes, ['default', 'greeting', 'test'])
       done()
     })
   })
   test('list-tubes-watched', function(done) {
-    client.listTubesWatched((err, tubes) => {
+    $.client.listTubesWatched((err, tubes) => {
       assert.ifError(err)
       assert.deepEqual(tubes, ['default'])
       done()
@@ -212,45 +219,30 @@ suite('generic', function() {
   })
 
   test('pause-tube', function(done) {
-    client.pauseTube('greeting', 100, done)
+    $.client.pauseTube('greeting', 100, done)
   })
 })
 
 suite('worker', function() {
-  let TEST_PORT = 9876
-  let server, client
+  let $ = {}
 
-  let responseMap = new Map()
-  responseMap.set(/^reserve\r\n$/, fixtures.RESERVED)
-  responseMap.set(/^reserve-with-timeout \d+\r\n$/, fixtures.RESERVED)
-  responseMap.set(/^release 1 2 100\r\n$/, fixtures.RELEASED)
-  responseMap.set(/^bury 1 5\r\n$/, fixtures.BURIED)
-  responseMap.set(/^delete 1\r\n$/, fixtures.DELETED)
-  responseMap.set(/^touch 1\r\n$/, fixtures.TOUCHED)
-
-  responseMap.set(/^watch mytube\r\n$/, fixtures.WATCHING)
-  responseMap.set(/^ignore mytube\r\n$/, fixtures.IGNORING)
-
-  setup(function(done) {
-    server = net.createServer((c) => {
-      c.setEncoding('ascii')
-      c.on('data', (data) => {
-        for (let [reg, res] of responseMap) {
-          if (reg.test(data)) return c.write(res)
-        }
-        throw new Error(`Unexpected message: ${data}`)
-      })
-    })
-    client = new bean.Worker(TEST_PORT)
-    server.listen(TEST_PORT, () => client.connect(done))
-  })
+  setup(makeSetup($, bean.Worker, new Map([
+    [/^reserve\r\n$/, fixtures.RESERVED],
+    [/^reserve-with-timeout \d+\r\n$/, fixtures.RESERVED],
+    [/^release 1 2 100\r\n$/, fixtures.RELEASED],
+    [/^bury 1 5\r\n$/, fixtures.BURIED],
+    [/^delete 1\r\n$/, fixtures.DELETED],
+    [/^touch 1\r\n$/, fixtures.TOUCHED],
+    [/^watch mytube\r\n$/, fixtures.WATCHING],
+    [/^ignore mytube\r\n$/, fixtures.IGNORING],
+  ])))
 
   teardown(function(done) {
-    client.disconnect(() => server.close(done))
+    $.client.disconnect(() => $.server.close(done))
   })
 
   test('reserve', function (done) {
-    client.reserve((err, job, body) => {
+    $.client.reserve((err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert.strictEqual(body, 'greeting')
@@ -258,7 +250,7 @@ suite('worker', function() {
     })
   })
   test('reserve-with-timeout', function (done) {
-    client.reserveWithTimeout(100, (err, job, body) => {
+    $.client.reserveWithTimeout(100, (err, job, body) => {
       assert.ifError(err)
       assert.strictEqual(job, '1')
       assert.strictEqual(body, 'greeting')
@@ -267,27 +259,27 @@ suite('worker', function() {
   })
 
   test('release', function(done) {
-    client.release('1', 2, 100, done)
+    $.client.release('1', 2, 100, done)
   })
   test('bury', function(done) {
-    client.bury('1', 5, done)
+    $.client.bury('1', 5, done)
   })
   test('delete', function(done) {
-    client.delete('1', done)
+    $.client.delete('1', done)
   })
   test('touch', function(done) {
-    client.touch('1', done)
+    $.client.touch('1', done)
   })
 
   test('watch', function(done) {
-    client.watch('mytube', (err, watching) => {
+    $.client.watch('mytube', (err, watching) => {
       assert.ifError(err)
       assert.strictEqual(watching, 2)
       done()
     })
   })
   test('ignore', function(done) {
-    client.ignore('mytube', (err, watching) => {
+    $.client.ignore('mytube', (err, watching) => {
       assert.ifError(err)
       assert.strictEqual(watching, 1)
       done()
@@ -296,45 +288,31 @@ suite('worker', function() {
 })
 
 suite('producer', function() {
-  let TEST_PORT = 9876
-  let server, client
+  let $ = {}
 
-  let responseMap = new Map()
-  responseMap.set(/^use test\r\n$/, fixtures.USING)
-  responseMap.set(/^put 1 2 3 6\r\n/, fixtures.INSERTED)
-  responseMap.set(/^put 1 2 3 15\r\n/, fixtures.INSERTED)
+  setup(makeSetup($, bean.Producer, new Map([
+    [/^use test\r\n$/, fixtures.USING],
+    [/^put 1 2 3 6\r\n/, fixtures.INSERTED],
+    [/^put 1 2 3 15\r\n/, fixtures.INSERTED]
+  ])))
+
+  teardown(function(done) {
+    $.client.disconnect(() => $.server.close(done))
+  })
 
   function getBody(data) {
     return msgpack.unpack(data.slice(data.indexOf(CRLF) + CRLF.length, -CRLF.length))
   }
 
-  setup(function(done) {
-    server = net.createServer((c) => {
-      c.on('data', (data) => {
-        client.emit('message', data)
-        for (let [reg, res] of responseMap) {
-          if (reg.test(data)) return c.write(res)
-        }
-        throw new Error(`Unexpected message: ${data}`)
-      })
-    })
-    client = new bean.Producer(TEST_PORT)
-    server.listen(TEST_PORT, () => client.connect(done))
-  })
-
-  teardown(function(done) {
-    client.disconnect(() => server.close(done))
-  })
-
   test('use', function(done) {
-    client.use('test', (err, tube) => {
+    $.client.use('test', (err, tube) => {
       assert.ifError(err)
       assert.strictEqual(tube, 'test')
       done()
     })
   })
   test('put', function(done) {
-    client.put('myjob', {priority: 1, delay: 2, ttr: 3}, (err, jobId) => {
+    $.client.put('myjob', {priority: 1, delay: 2, ttr: 3}, (err, jobId) => {
       assert.ifError(err)
       assert.strictEqual(jobId, '1')
       done()
@@ -348,12 +326,12 @@ suite('producer', function() {
     }
 
     let checkedBody = false
-    client.once('message', (data) => {
+    $.client.once('message', (data) => {
       assert.deepEqual(getBody(data), job)
       checkedBody = true
     })
 
-    client.put(job, {priority: 1, delay: 2, ttr: 3}, (err, jobId) => {
+    $.client.put(job, {priority: 1, delay: 2, ttr: 3}, (err, jobId) => {
       assert.ifError(err)
       assert.strictEqual(jobId, '1')
       assert(checkedBody)

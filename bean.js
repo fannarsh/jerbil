@@ -24,13 +24,18 @@ export class GenericBean extends process.EventEmitter {
     this.conn.setKeepAlive(true)
 
     let handleConnect = (err) => {
-      if (err) throw new Error('Failed to reassign tube during reconnect')
+      if (err) {
+        throw new Error('Failed to reassign tube during reconnect')
+      }
+
       this.emit('connect')
       setImmediate(callback)
     }
 
     this.conn.on('connect', () => {
-      if (!this.tube) return handleConnect()
+      if (!this.tube) {
+        return handleConnect()
+      }
 
       // Reassign tube automatically
       let args = ['use', this.tube]
@@ -42,7 +47,9 @@ export class GenericBean extends process.EventEmitter {
   }
 
   disconnect(callback = function() {}) {
-    if (this.disconnected) return callback()
+    if (this.disconnected) {
+      return callback()
+    }
 
     this.disconnected = true
 
@@ -57,20 +64,23 @@ export class GenericBean extends process.EventEmitter {
     let separatorIndex = responseData.indexOf(CRLF)
     let head = responseData.slice(0, separatorIndex).toString()
 
-    if (message === undefined)
+    if (message === undefined) {
       throw new Error('Response handler missing: ${head}')
+    }
 
     // console.log('>>RECEIVED:', JSON.stringify(responseData.toString()))
 
-    if (!head.startsWith(message.expectedResponse))
+    if (!head.startsWith(message.expectedResponse)) {
       return message.callback.call(this, new Error(head))
+    }
 
     head = head.split(' ').slice(1)
     let responseArgs = [null]
 
     // Parse this stuff in a way that is cooler
-    for (let typeCast of message.responseHead || [])
+    for (let typeCast of message.responseHead || []) {
       responseArgs.push(typeCast(head.shift()))
+    }
 
     if (message.responseBody) {
       let bytesLength = Number(head.pop())
@@ -98,17 +108,20 @@ export class GenericBean extends process.EventEmitter {
   }
 
   send(args, callback) {
-    if (this.disconnected)
+    if (this.disconnected) {
       throw new Error('Connection has been closed')
-    if (typeof callback !== 'function')
+    }
+    if (typeof callback !== 'function') {
       throw new Error('Malformed arguments')
+    }
 
     // Validate args
     let command = args[0]
     let responseSpec = responseSpecs[command]
 
-    if (responseSpec === undefined)
+    if (responseSpec === undefined) {
       throw Error(`Unexpected command: ${command}`)
+    }
 
     let message
 
@@ -123,15 +136,19 @@ export class GenericBean extends process.EventEmitter {
 
     // console.log('<<SENDING ', JSON.stringify(message.toString()))
 
+    // Prioritizing message
     if (args[Symbol.for('priority')]) {
-      // Prioritizing message
       this.queue.unshift(Object.assign({command, callback}, responseSpec))
     } else {
       this.queue.push(Object.assign({command, callback}, responseSpec))
     }
 
-    if (this.conn && this.conn.writable) this.conn.write(message)
-    else this.once('connect', () => this.conn.write(message))
+
+    if (this.conn && this.conn.writable) {
+      this.conn.write(message)
+    } else {
+      this.once('connect', () => this.conn.write(message))
+    }
   }
 
   /* General commands*/
