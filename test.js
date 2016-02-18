@@ -70,14 +70,17 @@ let fixtures = {
   INSERTED: new Buffer('INSERTED 1\r\n')
 }
 
-let TEST_PORT = 9876
 function makeSetup(scope, cstr, responseMap) {
+  let TEST_PORT = 9876
+
   return function(callback) {
     scope.client = new cstr(TEST_PORT)
 
     scope.server = net.createServer((c) => {
       c.on('data', (data) => {
         scope.client.emit('message', data)
+        let message = data.toString('ascii')
+        scope.client.emit(message.slice(0, message.indexOf(' ')), message)
 
         for (let [reg, res] of responseMap) {
           if (reg.test(data)) return c.write(res)
@@ -340,3 +343,127 @@ suite('producer', function() {
   })
 })
 
+suite('connection management', function() {
+  let $ = {}
+
+  suite('producer', function() {
+    setup(makeSetup($, bean.Producer, new Map([
+      [/^use test\r\n$/, fixtures.USING],
+      [/^stats\r\n/, fixtures.STATS],
+    ])))
+
+    teardown((done) => $.client.disconnect(() => $.server.close(done)))
+
+    test('automatic reconnect', function(done) {
+      let closed = false
+      let reconnected = false
+      $.client.conn.once('close', () => closed = true)
+      $.client.once('connect', () => reconnected = true)
+
+      $.client.conn.destroy()
+
+      $.client.stats((err, stats) => {
+        assert.ifError(err)
+        assert.deepEqual(stats, {'cmd-put': 3})
+        assert(closed)
+        assert(reconnected)
+        done()
+      })
+    })
+
+    test('automatic tube reassignment', function(done) {
+      let closed = false
+      let reconnected = false
+      $.client.conn.once('close', () => closed = true)
+      $.client.once('connect', () => reconnected = true)
+
+      let uses = 0
+      $.client.on('use', (message) => uses += 1)
+
+      $.client.use('test', (err, tube) => {
+        assert.ifError(err)
+        assert.equal(tube, 'test')
+
+        $.client.conn.destroy()
+
+        $.client.stats((err, stats) => {
+          assert.ifError(err)
+          assert.deepEqual(stats, {'cmd-put': 3})
+          assert(closed)
+          assert(reconnected)
+          assert.equal(uses, 2)
+          done()
+        })
+      })
+    })
+  })
+
+  suite('worker', function() {
+    setup(makeSetup($, bean.Worker, new Map([
+      [/^watch mytube\r\n/, fixtures.WATCHING],
+      [/^watch myothertube\r\n/, fixtures.WATCHING],
+      [/^watch mygreattube\r\n/, fixtures.WATCHING],
+      [/^ignore mytube\r\n$/, fixtures.IGNORING],
+      [/^stats\r\n/, fixtures.STATS],
+    ])))
+
+    teardown((done) => $.client.disconnect(() => $.server.close(done)))
+
+    test('automatic reconnect', function(done) {
+      let closed = false
+      let reconnected = false
+      $.client.conn.once('close', () => closed = true)
+      $.client.once('connect', () => reconnected = true)
+
+      $.client.conn.destroy()
+
+      $.client.stats((err, stats) => {
+        assert.ifError(err)
+        assert.deepEqual(stats, {'cmd-put': 3})
+        assert(closed)
+        assert(reconnected)
+        done()
+      })
+    })
+
+    test('automatic tube watch', function(done) {
+      let closed = false
+      let reconnected = false
+      $.client.conn.once('close', () => closed = true)
+      $.client.once('connect', () => reconnected = true)
+
+      let tubes = ['mytube', 'myothertube', 'mygreattube']
+      let watches = 0
+      $.client.on('watch', (message) => watches += 1)
+
+      let watchPromise = new Promise((resolve, reject) => {
+        ~function nextTube(index) {
+          let tube = tubes[index]
+
+          if (!tube) return resolve()
+
+          $.client.watch(tube, (err) => {
+            if (err) {
+              reject(err)
+            } else {
+              nextTube(++index)
+            }
+          })
+        }(0)
+      })
+      .catch(assert.fail)
+
+      watchPromise.then(() => {
+        $.client.conn.destroy()
+        $.client.stats((err, stats) => {
+          assert.ifError(err)
+          assert.deepEqual(stats, {'cmd-put': 3})
+          assert(closed)
+          assert(reconnected)
+          assert.equal(watches, tubes.length * 2)
+          done()
+        })
+      }).catch(assert.fail)
+    })
+  })
+})

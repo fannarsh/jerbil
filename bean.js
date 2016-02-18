@@ -13,7 +13,6 @@ export class GenericBean extends process.EventEmitter {
     super()
     this.port = port || 11300
     this.host = host || '127.0.0.1'
-    this.tube = undefined
     this.disconnected = false
     this.setMaxListeners(0)
     this.queue = new Queue()
@@ -21,29 +20,14 @@ export class GenericBean extends process.EventEmitter {
 
   connect(callback = function() {}) {
     this.conn = net.createConnection(this.port, this.host)
-    this.conn.setKeepAlive(true)
-
-    let handleConnect = (err) => {
-      if (err) {
-        throw new Error('Failed to reassign tube during reconnect')
-      }
-
-      this.emit('connect')
-      setImmediate(callback)
-    }
-
-    this.conn.on('connect', () => {
-      if (!this.tube) {
-        return handleConnect()
-      }
-
-      // Reassign tube automatically
-      let args = ['use', this.tube]
-      args[Symbol.for('priority')] = true
-      this.send(args, handleConnect)
-    })
-    this.conn.on('data', (data) => this.handle(data))
+    this.conn.on('connect', () => this.handleConnect(callback))
+    this.conn.on('data', (data) => this.handleResponse(data))
     this.conn.on('close', () => !this.disconnected && this.connect())
+  }
+
+  handleConnect(callback) {
+    this.emit('connect')
+    setImmediate(callback)
   }
 
   disconnect(callback = function() {}) {
@@ -59,7 +43,7 @@ export class GenericBean extends process.EventEmitter {
     callback(err)
   }
 
-  handle(responseData) {
+  handleResponse(responseData) {
     let message = this.queue.shift()
     let separatorIndex = responseData.indexOf(CRLF)
     let head = responseData.slice(0, separatorIndex).toString()
@@ -68,8 +52,6 @@ export class GenericBean extends process.EventEmitter {
       throw new Error('Response handler missing: ${head}')
     }
 
-    // console.log('>>RECEIVED:', JSON.stringify(responseData.toString()))
-
     if (!head.startsWith(message.expectedResponse)) {
       return message.callback.call(this, new Error(head))
     }
@@ -77,7 +59,6 @@ export class GenericBean extends process.EventEmitter {
     head = head.split(' ').slice(1)
     let responseArgs = [null]
 
-    // Parse this stuff in a way that is cooler
     for (let typeCast of message.responseHead || []) {
       responseArgs.push(typeCast(head.shift()))
     }
@@ -89,7 +70,6 @@ export class GenericBean extends process.EventEmitter {
       let body = responseData.slice(start, start + bytesLength)
 
       if (message.responseBody === 'yaml') {
-        // Response body for stats should be YAML
         responseArgs.push(yaml.safeLoad(body))
       } else {
         responseArgs.push(msgpack.unpack(body))
@@ -115,7 +95,8 @@ export class GenericBean extends process.EventEmitter {
       throw new Error('Malformed arguments')
     }
 
-    // Validate args
+    // TODO validate args
+
     let command = args[0]
     let responseSpec = responseSpecs[command]
 
@@ -123,6 +104,7 @@ export class GenericBean extends process.EventEmitter {
       throw Error(`Unexpected command: ${command}`)
     }
 
+    let responseObj = Object.assign({command, callback}, responseSpec)
     let message
 
     if (command === 'put') {
@@ -134,21 +116,27 @@ export class GenericBean extends process.EventEmitter {
       message = new Buffer(`${args.join(' ')}${CRLF.toString()}`)
     }
 
-    // console.log('<<SENDING ', JSON.stringify(message.toString()))
-
-    // Prioritizing message
-    if (args[Symbol.for('priority')]) {
-      this.queue.unshift(Object.assign({command, callback}, responseSpec))
+    if (this.isPrioritized(args)) {
+      // Prioritizing message
+      this.queue.unshift(responseObj)
     } else {
-      this.queue.push(Object.assign({command, callback}, responseSpec))
+      this.queue.push(responseObj)
     }
-
 
     if (this.conn && this.conn.writable) {
       this.conn.write(message)
     } else {
       this.once('connect', () => this.conn.write(message))
     }
+  }
+
+  makePrioritized(message) {
+    message[Symbol.for('priority')] = true
+    return message
+  }
+
+  isPrioritized(message) {
+    return message[Symbol.for('priority')] === true
   }
 
   /* General commands*/
@@ -203,9 +191,43 @@ export class GenericBean extends process.EventEmitter {
 export class Worker extends GenericBean {
   constructor(port, host) {
     super(port, host)
+    this.tubes = new Set()
   }
 
-  /* Worker commands*/
+  /**
+   * Override parent function to automatically re-watch tubes if any have been
+   * selected previously with .watch() or updated with .ignore()
+   */
+
+  handleConnect(callback) {
+    if (this.tubes.size < 1) {
+      return super.handleConnect(callback)
+    }
+
+    let tubes = this.tubes.values()
+
+    var nextTube = () => {
+      let tube = tubes.next()
+
+      if (tube.done) {
+        return super.handleConnect(callback)
+      }
+
+      this.send(this.makePrioritized(['watch', tube.value]), (err) => {
+        if (err) {
+          throw new Error('Failed to auto-rewatch tube')
+        }
+
+        nextTube()
+      })
+    }
+
+    nextTube()
+  }
+
+  /**
+   * Worker commands
+   */
 
   reserve(callback) {
     this.send(['reserve'], callback)
@@ -226,19 +248,55 @@ export class Worker extends GenericBean {
     this.send(['touch', job], callback)
   }
   watch(tube, callback) {
-    this.send(['watch', tube], callback)
+    this.send(['watch', tube], (err, count) => {
+      if (err) {
+        callback.call(this, err)
+      } else {
+        this.tubes.add(tube)
+        callback.call(this, err, count)
+      }
+    })
   }
   ignore(tube, callback) {
-    this.send(['ignore', tube], callback)
+    this.send(['ignore', tube], (err, count) => {
+      if (err) {
+        callback.call(this, err)
+      } else {
+        this.tubes.delete(tube)
+        callback.call(this, err, count)
+      }
+    })
   }
 }
 
 export class Producer extends GenericBean {
   constructor(port, host) {
     super(port, host)
+    this.tube = undefined
   }
 
-  /* Producer commands*/
+  /**
+   * Override parent function to automatically reassign tube if one has been
+   * selected previously with .use()
+   */
+
+  handleConnect(callback) {
+    if (this.tube === undefined) {
+      return super.handleConnect(callback)
+    }
+
+    this.send(this.makePrioritized(['use', this.tube]), (err) => {
+      if (err) {
+        throw new Error('Failed to auto-reassign tube')
+      }
+
+      super.handleConnect(callback)
+    })
+  }
+
+  /**
+   * Producer commands
+   */
 
   use(tube, callback) {
     this.send(['use', tube], (err, tube) => {
@@ -252,7 +310,6 @@ export class Producer extends GenericBean {
     })
   }
 
-  // put PRIORITY DELAY TTR BODY_LENGTH\r\nBODY\r\n
   put(body, opts, callback) {
     if (typeof opts !== 'object') {
       throw new Error('Missing options for put command')
