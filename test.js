@@ -4,7 +4,7 @@ let net = require('net')
 let assert = require('assert')
 let msgpack = require('msgpack')
 let yaml = require('js-yaml')
-let bean = require('./')
+let jerbil = require('./')
 
 let CRLF = new Buffer('\r\n')
 
@@ -97,7 +97,7 @@ function makeSetup(scope, cstr, responseMap) {
 suite('generic', function() {
   let $ = {}
 
-  setup(makeSetup($, bean.GenericBean, new Map([
+  setup(makeSetup($, jerbil.Generic, new Map([
     [/^peek 1\r\n$/, fixtures.FOUND],
     [/^peek 2\r\n$/, fixtures.NOT_FOUND],
     [/^peek 3\r\n$/, fixtures.FOUND_COMPLEX],
@@ -229,7 +229,7 @@ suite('generic', function() {
 suite('worker', function() {
   let $ = {}
 
-  setup(makeSetup($, bean.Worker, new Map([
+  setup(makeSetup($, jerbil.Worker, new Map([
     [/^reserve\r\n$/, fixtures.RESERVED],
     [/^reserve-with-timeout \d+\r\n$/, fixtures.RESERVED],
     [/^release 1 2 100\r\n$/, fixtures.RELEASED],
@@ -293,7 +293,7 @@ suite('worker', function() {
 suite('producer', function() {
   let $ = {}
 
-  setup(makeSetup($, bean.Producer, new Map([
+  setup(makeSetup($, jerbil.Producer, new Map([
     [/^use test\r\n$/, fixtures.USING],
     [/^put 1 2 3 6\r\n/, fixtures.INSERTED],
     [/^put 1 2 3 15\r\n/, fixtures.INSERTED]
@@ -347,7 +347,7 @@ suite('connection management', function() {
   let $ = {}
 
   suite('producer', function() {
-    setup(makeSetup($, bean.Producer, new Map([
+    setup(makeSetup($, jerbil.Producer, new Map([
       [/^use test\r\n$/, fixtures.USING],
       [/^stats\r\n/, fixtures.STATS],
     ])))
@@ -399,7 +399,7 @@ suite('connection management', function() {
   })
 
   suite('worker', function() {
-    setup(makeSetup($, bean.Worker, new Map([
+    setup(makeSetup($, jerbil.Worker, new Map([
       [/^watch mytube\r\n/, fixtures.WATCHING],
       [/^watch myothertube\r\n/, fixtures.WATCHING],
       [/^watch mygreattube\r\n/, fixtures.WATCHING],

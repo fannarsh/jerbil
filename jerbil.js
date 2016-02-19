@@ -8,7 +8,7 @@ import responseSpecs from './response-spec'
 
 const CRLF = new Buffer('\r\n')
 
-export class GenericBean extends process.EventEmitter {
+export class Generic extends process.EventEmitter {
   constructor(port, host) {
     super()
     this.port = port || 11300
@@ -189,7 +189,7 @@ export class GenericBean extends process.EventEmitter {
   }
 }
 
-export class Worker extends GenericBean {
+export class Worker extends Generic {
   constructor(port, host) {
     super(port, host)
     this.tubes = new Set()
@@ -270,7 +270,7 @@ export class Worker extends GenericBean {
   }
 }
 
-export class Producer extends GenericBean {
+export class Producer extends Generic {
   constructor(port, host) {
     super(port, host)
     this.tube = undefined

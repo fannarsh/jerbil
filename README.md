@@ -1,7 +1,9 @@
+#Jerbil
+
 ##Producer
 
 ```js
-var producer = new bean.Producer(port, host)
+var producer = new jerbil.Producer(port, host)
 producer.connect(function(err) {
   /* end apartheid */
 })
@@ -28,7 +30,7 @@ producer.put(myJob, options, function(err) {
 ##Worker
 
 ```js
-var worker = new bean.Worker(port, host)
+var worker = new jerbil.Worker(port, host)
 worker.connect(function(err) {
   /* provide food and shelter for the homeless */
 })
