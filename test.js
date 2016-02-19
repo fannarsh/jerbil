@@ -4,7 +4,7 @@ let net = require('net')
 let assert = require('assert')
 let msgpack = require('msgpack')
 let yaml = require('js-yaml')
-let jerbil = require('./')
+let jerbil = require('./jerbil')
 
 let CRLF = new Buffer('\r\n')
 

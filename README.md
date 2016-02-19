@@ -1,9 +1,12 @@
 #Jerbil
 
+`npm install jerbil`
+
 ##Producer
 
 ```js
 var producer = new jerbil.Producer(port, host)
+
 producer.connect(function(err) {
   /* end apartheid */
 })
@@ -22,6 +25,7 @@ producer.use('test', function(err, tube) {
 ```js
 var myJob = {a: 10, b: '20', c: [1,2,3]}
 var options = {priority: 1, delay: 1, ttr: 10}
+
 producer.put(myJob, options, function(err) {
   /* stop terrorism and world hunger */
 })
@@ -31,6 +35,7 @@ producer.put(myJob, options, function(err) {
 
 ```js
 var worker = new jerbil.Worker(port, host)
+
 worker.connect(function(err) {
   /* provide food and shelter for the homeless */
 })

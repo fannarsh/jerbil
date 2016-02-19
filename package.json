@@ -2,9 +2,9 @@
   "name": "jerbil",
   "version": "1.0.0",
   "description": "",
-  "main": "jerbil.js",
+  "main": "es5/index.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha --compilers js:babel-register --ui tdd test.js"
+    "test": "node_modules/.bin/mocha --compilers js:babel-register --ui tdd test.js"
   },
   "author": "",
   "license": "ISC",
@@ -14,7 +14,6 @@
     "msgpack": "^1.0.2"
   },
   "devDependencies": {
-    "babel-istanbul": "^0.6.0",
     "babel-register": "^6.5.2",
     "mocha": "^2.4.5"
   }
