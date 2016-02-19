@@ -207,7 +207,7 @@ export class Worker extends GenericBean {
 
     let tubes = this.tubes.values()
 
-    var nextTube = () => {
+    let nextTube = () => {
       let tube = tubes.next()
 
       if (tube.done) {

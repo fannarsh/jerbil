@@ -454,6 +454,7 @@ suite('connection management', function() {
       .catch(assert.fail)
 
       watchPromise.then(() => {
+        assert.equal(watches, tubes.length)
         $.client.conn.destroy()
         $.client.stats((err, stats) => {
           assert.ifError(err)
