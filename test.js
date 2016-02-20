@@ -64,6 +64,7 @@ let fixtures = {
   DELETED: new Buffer('DELETED\r\n'),
   TOUCHED: new Buffer('TOUCHED\r\n'),
   WATCHING: new Buffer('WATCHING 2\r\n'),
+  WATCHING_BATCH: new Buffer('WATCHING 1\r\nWATCHING 2\r\nWATCHING 3\r\n'),
   IGNORING: new Buffer('WATCHING 1\r\n'),
 
   USING: new Buffer('USING test\r\n'),
@@ -340,6 +341,36 @@ suite('producer', function() {
       assert(checkedBody)
       done()
     })
+  })
+})
+
+suite('batch messages', function() {
+  let $ = {}
+
+  setup(makeSetup($, jerbil.Worker, new Map([
+    [/^watch testa\r\nwatch testb\r\nwatch testc\r\n$/, fixtures.WATCHING_BATCH],
+  ])))
+
+  teardown(function(done) {
+    $.client.disconnect(() => $.server.close(done))
+  })
+
+  test('batch tubes watch', function(done) {
+    let tubes = ['testa', 'testb', 'testc']
+
+    Promise.all(tubes.map((tube, index) => {
+      return new Promise((resolve, reject) => {
+        $.client.watch(tube, (err, count) => {
+          if (err) {
+            reject(err)
+          } else {
+            assert.equal(count, index + 1)
+            resolve()
+          }
+        })
+      })
+    }))
+    .then(() => done(), assert.fail)
   })
 })
 

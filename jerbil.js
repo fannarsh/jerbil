@@ -84,7 +84,7 @@ export class Generic extends process.EventEmitter {
 
     if (responseData.indexOf(CRLF, separatorIndex + CRLF.length) !== -1) {
       // Continue processing batch response
-      this.handle(responseData.slice(separatorIndex + CRLF.length))
+      this.handleResponse(responseData.slice(separatorIndex + CRLF.length))
     }
   }
 
