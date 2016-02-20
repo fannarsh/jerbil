@@ -44,6 +44,7 @@ producer.connect(function(err) {
 
 *Commands available to workers and producers*
 
++ `setRaw`() *Disable automatic msgpack (de)serialization*
 + `connect`(callback)
 + `disconnect`(callback)
 + `peek`(jobName, callback)
