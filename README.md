@@ -1,4 +1,4 @@
-#Jerbil
+#jerbil
 
 `npm install jerbil`
 
@@ -12,7 +12,7 @@ producer.connect(function(err) {
 })
 ```
 
-**use(tube, callback)**
+###use(tube, callback)
 
 ```js
 producer.use('test', function(err, tube) {
@@ -20,13 +20,13 @@ producer.use('test', function(err, tube) {
 })
 ```
 
-**put(jobdata, options, callback)**
+###put(jobdata, options, callback)
 
 ```js
 var myJob = {a: 10, b: '20', c: [1,2,3]}
 var options = {priority: 1, delay: 1, ttr: 10}
 
-producer.put(myJob, options, function(err) {
+producer.put(myJob, options, function(err, jobName) {
   /* stop terrorism and world hunger */
 })
 ```
@@ -41,7 +41,7 @@ worker.connect(function(err) {
 })
 ```
 
-**reserve(callback)**
+###reserve(callback)
 
 ```js
 worker.reserve(function(err, jobName, jobData) {
@@ -49,7 +49,7 @@ worker.reserve(function(err, jobName, jobData) {
 })
 ```
 
-**reserveWithTimeout(timeout, callback)**
+###reserveWithTimeout(timeout, callback)
 
 ```js
 worker.reserveWithTimeout(10, function(err, jobName, jobData) {
@@ -57,7 +57,7 @@ worker.reserveWithTimeout(10, function(err, jobName, jobData) {
 })
 ```
 
-**release(job, priority, delay, callback)**
+###release(job, priority, delay, callback)
 
 ```js
 worker.release(jobName, 1, 10, function(err) {
@@ -65,7 +65,7 @@ worker.release(jobName, 1, 10, function(err) {
 })
 ```
 
-**bury(job, priority, callback)**
+###bury(job, priority, callback)
 
 ```js
 worker.bury(jobName, 1, function(err) {
@@ -73,71 +73,63 @@ worker.bury(jobName, 1, function(err) {
 })
 ```
 
-**delete(job, callback)**
+###delete(job, callback)
 
 ```js
-worker.delete(jobName, function(err) {
-/* */
-})
+worker.delete(jobName, function(err) { })
 ```
 
-**touch(job, callback)**
+###touch(job, callback)
 
 ```js
-worker.touch(jobName, function(err) {
-/* */
-})
+worker.touch(jobName, function(err) { })
 ```
 
-**watch(tube, callback)**
+###watch(tube, callback)
 
 ```js
-worker.watch('mytube', function(err, watchCount) {
-/* */
-})
+worker.watch('mytube', function(err, watchCount) { })
 ```
 
-**ignore(tube, callback)**
+###ignore(tube, callback)
 
 ```js
-worker.ignore('mytube', function(err, watchCount) {
-/* */
-})
+worker.ignore('mytube', function(err, watchCount) { })
 ```
 
 ##Generic
 
-**connect(callback)**
+###connect(callback)
 
-**disconnect(callback)**
+###disconnect(callback)
 
-**peek(job, callback)**
+###peek(job, callback)
 
-**peekReady(callback)**
+###peekReady(callback)
 
-**peekBuried(callback)**
+###peekBuried(callback)
 
-**peekDelayed(callback)**
+###peekDelayed(callback)
 
-**kick(count, callback)**
+###kick(count, callback)
 
-**kickJob(job, callback)**
+###kickJob(job, callback)
 
-**stats(callback)**
+###stats(callback)
 
-**statsTube(tube, callback)**
+###statsTube(tube, callback)
 
-**statsJob(job, callback)**
+###statsJob(job, callback)
 
-**listTubes(callback)**
+###listTubes(callback)
 
-**listTubesWatched(callback)**
+###listTubesWatched(callback)
 
-**listTubesWatched(callback)**
+###listTubesWatched(callback)
 
-**listTubeUsed(callback)**
+###listTubeUsed(callback)
 
-**pauseTube(tube, delay, callback)**
+###pauseTube(tube, delay, callback)
 
-**quit(callback)**
+###quit(callback)
 
