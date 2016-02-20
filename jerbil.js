@@ -14,8 +14,14 @@ export class Generic extends process.EventEmitter {
     this.port = port || 11300
     this.host = host || '127.0.0.1'
     this.disconnected = false
+    this.raw = false
     this.setMaxListeners(0)
     this.queue = new Queue()
+  }
+
+  setRaw(val) {
+    // Disable automatic msgpack (de)serialization
+    this.raw = (val !== false)
   }
 
   connect(callback = function() {}) {
@@ -66,12 +72,13 @@ export class Generic extends process.EventEmitter {
 
     if (message.responseBody) {
       let bytesLength = Number(head.pop())
-
       let start = separatorIndex + CRLF.length
       let body = responseData.slice(start, start + bytesLength)
 
       if (message.responseBody === 'yaml') {
         responseArgs.push(yaml.safeLoad(body))
+      } else if (this.raw) {
+        responseArgs.push(body)
       } else {
         responseArgs.push(msgpack.unpack(body))
       }
@@ -90,7 +97,7 @@ export class Generic extends process.EventEmitter {
 
   send(args, callback) {
     if (this.disconnected) {
-      throw new Error('Connection has been closed')
+      throw new Error('Connection has been closed by user')
     }
     if (typeof callback !== 'function') {
       throw new Error('Malformed arguments')
@@ -110,7 +117,7 @@ export class Generic extends process.EventEmitter {
 
     if (command === 'put') {
       // Message must have a body
-      let body = msgpack.pack(args.pop())
+      let body = this.raw ? new Buffer(args.pop()) : msgpack.pack(args.pop())
       let head = new Buffer(`${args.join(' ')} ${body.length}`)
       message = Buffer.concat([head, CRLF, body, CRLF])
     } else {

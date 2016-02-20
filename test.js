@@ -59,6 +59,11 @@ let fixtures = {
     msgpack.pack('greeting'),
     CRLF
   ]),
+  RESERVED_RAW: Buffer.concat([
+    new Buffer('RESERVED 1 29\r\n'),
+    new Buffer(JSON.stringify({a: 10, b: '20', c: [1,2,3]})),
+    CRLF
+  ]),
   RELEASED: new Buffer('RELEASED\r\n'),
   BURIED: new Buffer('BURIED\r\n'),
   DELETED: new Buffer('DELETED\r\n'),
@@ -340,6 +345,64 @@ suite('producer', function() {
       assert.strictEqual(jobId, '1')
       assert(checkedBody)
       done()
+    })
+  })
+})
+
+suite('raw jobs', function() {
+  let $ = {}
+
+  suite('producer', function() {
+    setup(makeSetup($, jerbil.Producer, new Map([
+      [/^put 1 2 3 29\r\n/, fixtures.INSERTED],
+    ])))
+
+    teardown((done) => $.client.disconnect(() => $.server.close(done)))
+
+    test('put raw job', function(done) {
+      $.client.setRaw(true)
+
+      let checkedMessage = false
+      let job = {a: 10, b: '20', c: [1,2,3]}
+      let options = {priority: 1, delay: 2, ttr: 3}
+
+      $.client.on('put', (m) => {
+        assert.equal(typeof m, 'string')
+        let body = m.slice(m.indexOf('\r\n') + 2)
+        assert.deepEqual(JSON.parse(body), job)
+        checkedMessage = true
+      })
+
+      $.client.put(JSON.stringify(job), options, function(err, jobId) {
+        assert.ifError(err)
+        assert.strictEqual(jobId, '1')
+        assert(checkedMessage)
+        done()
+      })
+    })
+  })
+
+  suite('worker', function() {
+    setup(makeSetup($, jerbil.Worker, new Map([
+      [/^reserve\r\n/, fixtures.RESERVED_RAW],
+    ])))
+
+    teardown((done) => $.client.disconnect(() => $.server.close(done)))
+
+    test('reserve raw job', function(done) {
+      $.client.setRaw(true)
+
+      $.client.reserve(function(err, jobName, jobData) {
+        assert.ifError(err)
+        assert.strictEqual(jobName, '1')
+        assert(Buffer.isBuffer(jobData))
+        assert.deepEqual(JSON.parse(jobData.toString()), {
+          a: 10,
+          b: '20',
+          c: [1,2,3]
+        })
+        done()
+      })
     })
   })
 })

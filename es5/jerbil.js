@@ -52,12 +52,19 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
     _this.port = port || 11300;
     _this.host = host || '127.0.0.1';
     _this.disconnected = false;
+    _this.raw = false;
     _this.setMaxListeners(0);
     _this.queue = new _doubleEndedQueue2.default();
     return _this;
   }
 
   _createClass(Generic, [{
+    key: 'setRaw',
+    value: function setRaw(val) {
+      // Disable automatic msgpack (de)serialization
+      this.raw = val !== false;
+    }
+  }, {
     key: 'connect',
     value: function connect() {
       var _this2 = this;
@@ -147,12 +154,13 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
 
       if (message.responseBody) {
         var bytesLength = Number(head.pop());
-
         var start = separatorIndex + CRLF.length;
         var body = responseData.slice(start, start + bytesLength);
 
         if (message.responseBody === 'yaml') {
           responseArgs.push(_jsYaml2.default.safeLoad(body));
+        } else if (this.raw) {
+          responseArgs.push(body);
         } else {
           responseArgs.push(_msgpack2.default.unpack(body));
         }
@@ -174,7 +182,7 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
       var _this3 = this;
 
       if (this.disconnected) {
-        throw new Error('Connection has been closed');
+        throw new Error('Connection has been closed by user');
       }
       if (typeof callback !== 'function') {
         throw new Error('Malformed arguments');
@@ -194,7 +202,7 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
 
       if (command === 'put') {
         // Message must have a body
-        var body = _msgpack2.default.pack(args.pop());
+        var body = this.raw ? new Buffer(args.pop()) : _msgpack2.default.pack(args.pop());
         var head = new Buffer(args.join(' ') + ' ' + body.length);
         message = Buffer.concat([head, CRLF, body, CRLF]);
       } else {
