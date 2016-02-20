@@ -1,7 +1,5 @@
 #jerbil
 
-`npm install jerbil`
-
 ##Features
 
 + Full set of beanstalkd commands
@@ -11,19 +9,17 @@
 
 ###Usage
 
+`npm install jerbil`
+
 ```js
 //worker.js
 var worker = new jerbil.Worker(port, host)
 
 worker.connect(function(err) {
-  if (err) throw err
-  worker.watch('mytube', function(err, tubeName) {
-    if (err) throw err
-    console.log('Watching tube', tubeName)
-  })
-  worker.reserve(function(err, jobName, jobData) {
-    if (err) throw err
-    console.log('Received job', jobName)
+  worker.watch('mytube', function(err) {
+    worker.reserve(function(err, jobName, jobData) {
+      console.log('Received job', jobName)
+    })
   })
 })
 ```
@@ -33,17 +29,11 @@ worker.connect(function(err) {
 var producer = new jerbil.Producer(port, host)
 
 producer.connect(function(err) {
-  if (err) throw err
-
   producer.use('mytube', function(err, tubeName) {
-    if (err) throw err
-    console.log('Using tube', tubeName)
-  })
-
-  var job = {name: 'testjob', someProp: 10}
-  producer.put(job, {priority: 1, delay: 1, ttr: 10}, function(err, jobName) {
-    if (err) throw err
-    console.log('Added job', jobName)
+    var job = {name: 'testjob', someProp: 10}
+    producer.put(job, {priority: 1, delay: 1, ttr: 10}, function(err, jobName) {
+      console.log('Added job', jobName)
+    })
   })
 })
 ```
