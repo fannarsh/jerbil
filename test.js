@@ -374,7 +374,35 @@ suite('batch messages', function() {
   })
 })
 
-suite('connection management', function() {
+suite('automatic reconnect', function() {
+  let $ = {}
+
+  setup(makeSetup($, jerbil.Producer, new Map([
+    [/^use test\r\n$/, fixtures.USING],
+    [/^stats\r\n/, fixtures.STATS],
+  ])))
+
+  teardown((done) => $.client.disconnect(() => $.server.close(done)))
+
+  test('automatic reconnect', function(done) {
+    let closed = false
+    let reconnected = false
+    $.client.conn.once('close', () => closed = true)
+    $.client.once('connect', () => reconnected = true)
+
+    $.client.conn.destroy()
+
+    $.client.stats((err, stats) => {
+      assert.ifError(err)
+      assert.deepEqual(stats, {'cmd-put': 3})
+      assert(closed)
+      assert(reconnected)
+      done()
+    })
+  })
+})
+
+suite('automatic tube reassignment', function() {
   let $ = {}
 
   suite('producer', function() {
@@ -385,24 +413,7 @@ suite('connection management', function() {
 
     teardown((done) => $.client.disconnect(() => $.server.close(done)))
 
-    test('automatic reconnect', function(done) {
-      let closed = false
-      let reconnected = false
-      $.client.conn.once('close', () => closed = true)
-      $.client.once('connect', () => reconnected = true)
-
-      $.client.conn.destroy()
-
-      $.client.stats((err, stats) => {
-        assert.ifError(err)
-        assert.deepEqual(stats, {'cmd-put': 3})
-        assert(closed)
-        assert(reconnected)
-        done()
-      })
-    })
-
-    test('automatic tube reassignment', function(done) {
+    test('automatic re-use', function(done) {
       let closed = false
       let reconnected = false
       $.client.conn.once('close', () => closed = true)
@@ -440,24 +451,7 @@ suite('connection management', function() {
 
     teardown((done) => $.client.disconnect(() => $.server.close(done)))
 
-    test('automatic reconnect', function(done) {
-      let closed = false
-      let reconnected = false
-      $.client.conn.once('close', () => closed = true)
-      $.client.once('connect', () => reconnected = true)
-
-      $.client.conn.destroy()
-
-      $.client.stats((err, stats) => {
-        assert.ifError(err)
-        assert.deepEqual(stats, {'cmd-put': 3})
-        assert(closed)
-        assert(reconnected)
-        done()
-      })
-    })
-
-    test('automatic tube watch', function(done) {
+    test('automatic re-watch', function(done) {
       let closed = false
       let reconnected = false
       $.client.conn.once('close', () => closed = true)
@@ -482,7 +476,6 @@ suite('connection management', function() {
           })
         }(0)
       })
-      .catch(assert.fail)
 
       watchPromise.then(() => {
         assert.equal(watches, tubes.length)
