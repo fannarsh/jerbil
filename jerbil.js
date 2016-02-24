@@ -28,12 +28,12 @@ export class Generic extends process.EventEmitter {
     this.disconnected = false
     this.conn = net.createConnection(this.port, this.host)
     this.conn.setKeepAlive(true)
-    this.conn.on('connect', () => this.handleConnect(callback))
-    this.conn.on('data', (data) => this.handleResponse(data))
+    this.conn.on('connect', () => this._handleConnect(callback))
+    this.conn.on('data', (data) => this._handleResponse(data))
     this.conn.on('close', () => !this.disconnected && this.connect())
   }
 
-  handleConnect(callback) {
+  _handleConnect(callback) {
     this.emit('connect')
     setImmediate(function() {
       callback(null)
@@ -47,14 +47,18 @@ export class Generic extends process.EventEmitter {
       return callback(err)
     }
 
-    this.disconnected = true
-
     try { this.conn.destroy() } catch (e) { err = e }
+
+    this.disconnected = true
+    this.queue.toArray().forEach((responseObj) => {
+      responseObj.callback.call(this, new Error('Disconnected'))
+    })
+    this.queue = new Queue()
 
     callback(err)
   }
 
-  handleResponse(responseData) {
+  _handleResponse(responseData) {
     let message = this.queue.shift()
     let separatorIndex = responseData.indexOf(CRLF)
     let head = responseData.slice(0, separatorIndex).toString()
@@ -95,11 +99,11 @@ export class Generic extends process.EventEmitter {
 
     if (responseData.indexOf(CRLF, separatorIndex + CRLF.length) !== -1) {
       // Continue processing batch response
-      this.handleResponse(responseData.slice(separatorIndex + CRLF.length))
+      this._handleResponse(responseData.slice(separatorIndex + CRLF.length))
     }
   }
 
-  send(args, callback) {
+  _createResponseObj(args, callback) {
     if (this.disconnected) {
       throw new Error('Connection has been closed by user')
     }
@@ -116,7 +120,11 @@ export class Generic extends process.EventEmitter {
       throw Error(`Unexpected command: ${command}`)
     }
 
-    let responseObj = Object.assign({command, callback}, responseSpec)
+    return Object.assign({command, callback}, responseSpec)
+  }
+
+  _createMessage(args) {
+    let command = args[0]
     let message
 
     if (command === 'put') {
@@ -128,7 +136,14 @@ export class Generic extends process.EventEmitter {
       message = new Buffer(`${args.join(' ')}${CRLF.toString()}`)
     }
 
-    if (this.isPrioritized(args)) {
+    return message
+  }
+
+  send(args, callback) {
+    let responseObj = this._createResponseObj(args, callback)
+    let message = this._createMessage(args)
+
+    if (this._isPrioritized(args)) {
       // Prioritizing message
       this.queue.unshift(responseObj)
     } else {
@@ -142,12 +157,12 @@ export class Generic extends process.EventEmitter {
     }
   }
 
-  makePrioritized(message) {
+  _makePrioritized(message) {
     message[Symbol.for('priority')] = true
     return message
   }
 
-  isPrioritized(message) {
+  _isPrioritized(message) {
     return message[Symbol.for('priority')] === true
   }
 
@@ -211,9 +226,9 @@ export class Worker extends Generic {
    * selected previously with .watch() or updated with .ignore()
    */
 
-  handleConnect(callback) {
+  _handleConnect(callback) {
     if (this.tubes.size < 1) {
-      return super.handleConnect(callback)
+      return super._handleConnect(callback)
     }
 
     let tubes = this.tubes.values()
@@ -222,10 +237,10 @@ export class Worker extends Generic {
       let tube = tubes.next()
 
       if (tube.done) {
-        return super.handleConnect(callback)
+        return super._handleConnect(callback)
       }
 
-      this.send(this.makePrioritized(['watch', tube.value]), (err) => {
+      this.send(this._makePrioritized(['watch', tube.value]), (err) => {
         if (err) {
           throw new Error('Failed to auto-rewatch tube')
         }
@@ -292,17 +307,17 @@ export class Producer extends Generic {
    * selected previously with .use()
    */
 
-  handleConnect(callback) {
+  _handleConnect(callback) {
     if (this.tube === undefined) {
-      return super.handleConnect(callback)
+      return super._handleConnect(callback)
     }
 
-    this.send(this.makePrioritized(['use', this.tube]), (err) => {
+    this.send(this._makePrioritized(['use', this.tube]), (err) => {
       if (err) {
         throw new Error('Failed to auto-reassign tube')
       }
 
-      super.handleConnect(callback)
+      super._handleConnect(callback)
     })
   }
 
