@@ -34,17 +34,20 @@ export class Generic extends process.EventEmitter {
 
   handleConnect(callback) {
     this.emit('connect')
-    setImmediate(callback)
+    setImmediate(function() {
+      callback(null)
+    })
   }
 
   disconnect(callback = function() {}) {
+    let err = null
+
     if (this.disconnected) {
-      return callback()
+      return callback(err)
     }
 
     this.disconnected = true
 
-    let err = null
     try { this.conn.destroy() } catch (e) { err = e }
 
     callback(err)

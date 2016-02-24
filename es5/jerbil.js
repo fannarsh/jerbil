@@ -87,20 +87,23 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
     key: 'handleConnect',
     value: function handleConnect(callback) {
       this.emit('connect');
-      setImmediate(callback);
+      setImmediate(function () {
+        callback(null);
+      });
     }
   }, {
     key: 'disconnect',
     value: function disconnect() {
       var callback = arguments.length <= 0 || arguments[0] === undefined ? function () {} : arguments[0];
 
+      var err = null;
+
       if (this.disconnected) {
-        return callback();
+        return callback(err);
       }
 
       this.disconnected = true;
 
-      var err = null;
       try {
         this.conn.destroy();
       } catch (e) {
