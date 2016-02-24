@@ -25,6 +25,7 @@ export class Generic extends process.EventEmitter {
   }
 
   connect(callback = function() {}) {
+    this.disconnected = false
     this.conn = net.createConnection(this.port, this.host)
     this.conn.setKeepAlive(true)
     this.conn.on('connect', () => this.handleConnect(callback))

@@ -71,6 +71,7 @@ var Generic = exports.Generic = function (_process$EventEmitter) {
 
       var callback = arguments.length <= 0 || arguments[0] === undefined ? function () {} : arguments[0];
 
+      this.disconnected = false;
       this.conn = _net2.default.createConnection(this.port, this.host);
       this.conn.setKeepAlive(true);
       this.conn.on('connect', function () {
