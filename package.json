@@ -17,8 +17,7 @@
   "devDependencies": {
     "ava": "^0.12.0",
     "babel-core": "^6.5.2",
-    "bluebird": "^3.3.3",
-    "mocha": "^2.4.5"
+    "bluebird": "^3.3.3"
   },
   "ava": {
     "require": "babel-core/register"
