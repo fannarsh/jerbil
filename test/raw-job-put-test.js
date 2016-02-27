@@ -1,13 +1,12 @@
 'use strict'
 
 import test from 'ava'
-import {makeTeardown, makeSetup} from './utils'
+import {Producer} from '../'
+import {fixtures, makeTeardown, makeSetup} from './utils'
 
-let jerbil = require('../')
-let fixtures = require('./fixtures')
-let $ = {}
+const $ = {}
 
-test.before(() => makeSetup($, jerbil.Producer, new Map([
+test.before(() => makeSetup($, Producer, new Map([
   [/^put 1 2 3 29\r\n/, fixtures.INSERTED],
 ])))
 

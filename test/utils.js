@@ -6,6 +6,8 @@ let msgpack = require('msgpack')
 let yaml = require('js-yaml')
 let CRLF = new Buffer('\r\n')
 
+exports.fixtures = require('./fixtures')
+
 exports.makeSetup = function(scope, cstr, responseMap) {
   let TEST_PORT = 9876
 

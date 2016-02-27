@@ -4,7 +4,7 @@ import net from 'net'
 import msgpack from 'msgpack'
 import yaml from 'js-yaml'
 import Queue from 'double-ended-queue'
-import responseSpecs from './response-spec'
+import {commandSpecs, responseSpecs} from './spec'
 
 const CRLF = new Buffer('\r\n')
 
@@ -103,28 +103,7 @@ export class Generic extends process.EventEmitter {
     }
   }
 
-  _createResponseObj(args, callback) {
-    if (this.disconnected) {
-      throw new Error('Connection has been closed by user')
-    }
-    if (typeof callback !== 'function') {
-      throw new Error('Malformed arguments')
-    }
-
-    // TODO validate args
-
-    let command = args[0]
-    let responseSpec = responseSpecs[command]
-
-    if (responseSpec === undefined) {
-      throw Error(`Unexpected command: ${command}`)
-    }
-
-    return Object.assign({command, callback}, responseSpec)
-  }
-
-  _createMessage(args) {
-    let command = args[0]
+  _createMessage(command, args) {
     let message
 
     if (command === 'put') {
@@ -139,9 +118,36 @@ export class Generic extends process.EventEmitter {
     return message
   }
 
-  send(args, callback) {
-    let responseObj = this._createResponseObj(args, callback)
-    let message = this._createMessage(args)
+  _validateArgs(args) {
+    let command = args[0]
+    let commandSpec = commandSpecs[command]
+
+    if (commandSpec === undefined) {
+      throw new Error(`Unexpected command: ${command}`)
+    }
+
+    for (let [index, arg] of commandSpec.entries()) {
+      let [name, re] = arg
+      let cArg = args[++index]
+      if (cArg === undefined || !re.test(cArg)) {
+        throw new Error(`Expected argument ${index} (${name}) to match: ${re.source}`)
+      }
+    }
+  }
+
+  sendCommand(args, callback) {
+    if (this.disconnected) {
+      throw new Error('Connection has been closed by user')
+    }
+
+    this._validateArgs(args)
+
+    if (!(this.conn && this.conn.writable)) {
+      return this.once('connect', () => this.sendCommand(args, callback))
+    }
+
+    let command = args[0]
+    let responseObj = Object.assign({command, callback}, responseSpecs[command])
 
     if (this._isPrioritized(args)) {
       // Prioritizing message
@@ -150,11 +156,7 @@ export class Generic extends process.EventEmitter {
       this.queue.push(responseObj)
     }
 
-    if (this.conn && this.conn.writable) {
-      this.conn.write(message)
-    } else {
-      this.once('connect', () => this.conn.write(message))
-    }
+    this.conn.write(this._createMessage(command, args))
   }
 
   _makePrioritized(message) {
@@ -169,49 +171,49 @@ export class Generic extends process.EventEmitter {
   /* General commands*/
 
   peek(job, callback) {
-    this.send(['peek', job], callback)
+    this.sendCommand(['peek', job], callback)
   }
   peekReady(callback) {
-    this.send(['peek-ready'], callback)
+    this.sendCommand(['peek-ready'], callback)
   }
   peekBuried(callback) {
-    this.send(['peek-buried'], callback)
+    this.sendCommand(['peek-buried'], callback)
   }
   peekDelayed(callback) {
-    this.send(['peek-delayed'], callback)
+    this.sendCommand(['peek-delayed'], callback)
   }
 
   kick(count, callback) {
-    this.send(['kick', count], callback)
+    this.sendCommand(['kick', count], callback)
   }
   kickJob(job, callback) {
-    this.send(['kick-job', job], callback)
+    this.sendCommand(['kick-job', job], callback)
   }
 
   stats(callback) {
-    this.send(['stats'], callback)
+    this.sendCommand(['stats'], callback)
   }
   statsJob(job, callback) {
-    this.send(['stats-job', job], callback)
+    this.sendCommand(['stats-job', job], callback)
   }
   statsTube(tube, callback) {
-    this.send(['stats-tube', tube], callback)
+    this.sendCommand(['stats-tube', tube], callback)
   }
 
   listTubes(callback) {
-    this.send(['list-tubes'], callback)
+    this.sendCommand(['list-tubes'], callback)
   }
   listTubesWatched(callback) {
-    this.send(['list-tubes-watched'], callback)
+    this.sendCommand(['list-tubes-watched'], callback)
   }
   listTubeUsed(callback) {
-    this.send(['list-tube-used'], callback)
+    this.sendCommand(['list-tube-used'], callback)
   }
   pauseTube(tube, delay, callback) {
-    this.send(['pause-tube', tube, delay], callback)
+    this.sendCommand(['pause-tube', tube, delay], callback)
   }
   quit(callback) {
-    this.send(['quit'], callback)
+    this.sendCommand(['quit'], callback)
   }
 }
 
@@ -240,7 +242,7 @@ export class Worker extends Generic {
         return super._handleConnect(callback)
       }
 
-      this.send(this._makePrioritized(['watch', tube.value]), (err) => {
+      this.sendCommand(this._makePrioritized(['watch', tube.value]), (err) => {
         if (err) {
           throw new Error('Failed to auto-rewatch tube')
         }
@@ -257,25 +259,25 @@ export class Worker extends Generic {
    */
 
   reserve(callback) {
-    this.send(['reserve'], callback)
+    this.sendCommand(['reserve'], callback)
   }
   reserveWithTimeout(timeout, callback) {
-    this.send(['reserve-with-timeout', timeout], callback)
+    this.sendCommand(['reserve-with-timeout', timeout], callback)
   }
   release(job, priority, delay, callback) {
-    this.send(['release', job, priority, delay], callback)
+    this.sendCommand(['release', job, priority, delay], callback)
   }
   bury(job, priority, callback) {
-    this.send(['bury', job, priority], callback)
+    this.sendCommand(['bury', job, priority], callback)
   }
   delete(job, callback) {
-    this.send(['delete', job], callback)
+    this.sendCommand(['delete', job], callback)
   }
   touch(job, callback) {
-    this.send(['touch', job], callback)
+    this.sendCommand(['touch', job], callback)
   }
   watch(tube, callback) {
-    this.send(['watch', tube], (err, count) => {
+    this.sendCommand(['watch', tube], (err, count) => {
       if (err) {
         callback.call(this, err)
       } else {
@@ -285,7 +287,7 @@ export class Worker extends Generic {
     })
   }
   ignore(tube, callback) {
-    this.send(['ignore', tube], (err, count) => {
+    this.sendCommand(['ignore', tube], (err, count) => {
       if (err) {
         callback.call(this, err)
       } else {
@@ -312,7 +314,7 @@ export class Producer extends Generic {
       return super._handleConnect(callback)
     }
 
-    this.send(this._makePrioritized(['use', this.tube]), (err) => {
+    this.sendCommand(this._makePrioritized(['use', this.tube]), (err) => {
       if (err) {
         throw new Error('Failed to auto-reassign tube')
       }
@@ -326,7 +328,7 @@ export class Producer extends Generic {
    */
 
   use(tube, callback) {
-    this.send(['use', tube], (err, tube) => {
+    this.sendCommand(['use', tube], (err, tube) => {
       if (err) {
         callback.call(this, err)
       } else {
@@ -347,6 +349,6 @@ export class Producer extends Generic {
     args.push(opts.delay === undefined ? 0 : opts.delay)
     args.push(opts.ttr === undefined ? 10 : opts.ttr)
 
-    return this.send(['put', ...args, body], callback)
+    return this.sendCommand(['put', ...args, body], callback)
   }
 }

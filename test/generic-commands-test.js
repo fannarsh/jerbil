@@ -1,13 +1,12 @@
 'use strict'
 
 import test from 'ava'
-import {makeTeardown, makeSetup} from './utils'
+import {Generic} from '../'
+import {fixtures, makeTeardown, makeSetup} from './utils'
 
-let jerbil = require('../')
-let fixtures = require('./fixtures')
-let $ = {}
+const $ = {}
 
-test.before(() => makeSetup($, jerbil.Generic, new Map([
+test.before(() => makeSetup($, Generic, new Map([
   [/^peek 1\r\n$/, fixtures.FOUND],
   [/^peek 2\r\n$/, fixtures.NOT_FOUND],
   [/^peek 3\r\n$/, fixtures.FOUND_COMPLEX],
@@ -32,8 +31,7 @@ test('peek', (t) => {
   })
 })
 test('peek (not found)', (t) => {
-  return $.client.peekP('2')
-  .then(t.fail)
+  return $.client.peekP('2').then(t.fail)
   .catch((err) => {
     t.true(err instanceof Error)
     t.is(err.message, 'NOT_FOUND')
@@ -49,6 +47,15 @@ test('peek (complex job)', (t) => {
     })
   })
 })
+test('peek (invalid job)', (t) => {
+  return $.client.peekP('☃1').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('peek (missing job)', (t) => {
+  return $.client.peekP().then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+
 test('peek-ready', (t) => {
   return $.client.peekReadyP().spread((job, body) => {
     t.is(job, '1')
@@ -69,12 +76,29 @@ test('peek-delayed', (t) => {
 })
 
 test('kick', (t) => {
-  return $.client.kickP(10).spread((kicked) => {
+  return $.client.kickP('10').spread((kicked) => {
     t.is(kicked, 10)
   })
 })
+test('kick (invalid count)', (t) => {
+  return $.client.kickP('☃10').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('kick (missing count)', (t) => {
+  return $.client.kickP().then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+
 test('kick-job', (t) => {
   return $.client.kickJobP('1')
+})
+test('kick-job (invalid job)', (t) => {
+  return $.client.kickJobP('☃1').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('kick-job (missing job)', (t) => {
+  return $.client.kickJobP(undefined).then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
 })
 
 test('stats', (t) => {
@@ -82,15 +106,33 @@ test('stats', (t) => {
     t.same(stats, {'cmd-put': 3})
   })
 })
+
 test('stats-tube', (t) => {
   return $.client.statsTubeP('test').spread((stats) => {
     t.same(stats, {'cmd-put': 2})
   })
 })
+test('stats-tube (invalid tube)', (t) => {
+  return $.client.statsTubeP('☃test').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('stats-tube (missing tube)', (t) => {
+  return $.client.statsTubeP(undefined).then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+
 test('stats-job', (t) => {
   return $.client.statsJobP('1').spread((stats) => {
     t.same(stats, {'cmd-put': 1})
   })
+})
+test('stats-job (invalid job)', (t) => {
+  return $.client.statsJobP('☃').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('stats-job (missing job)', (t) => {
+  return $.client.statsJobP().then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
 })
 
 test('list-tubes', (t) => {
@@ -105,6 +147,21 @@ test('list-tubes-watched', (t) => {
 })
 
 test('pause-tube', (t) => {
-  return $.client.pauseTubeP('greeting', 100)
+  return $.client.pauseTubeP('greeting', '100')
 })
-
+test('pause-tube (invalid tube)', (t) => {
+  return $.client.pauseTubeP('☃greeting', 100).then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('pause-tube (missing tube)', (t) => {
+  return $.client.pauseTubeP(undefined, 100).then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 1')))
+})
+test('pause-tube (invalid pause)', (t) => {
+  return $.client.pauseTubeP('greeting', 'saludos').then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 2')))
+})
+test('pause-tube (missing pause)', (t) => {
+  return $.client.pauseTubeP('greeting', undefined).then(t.fail)
+  .catch((err) => t.true(err.message.startsWith('Expected argument 2')))
+})

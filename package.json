@@ -5,7 +5,8 @@
   "main": "es5/index.js",
   "scripts": {
     "test": "node_modules/.bin/ava --verbose --serial test/*-test.js",
-    "compile": "babel -d es5/ jerbil.js response-spec.js"
+    "pretest": "npm run compile",
+    "compile": "babel -d es5/ jerbil.js spec.js"
   },
   "author": "",
   "license": "ISC",
