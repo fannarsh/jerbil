@@ -2,7 +2,7 @@
   "name": "jerbil",
   "version": "1.2.0",
   "description": "beanstalkd client",
-  "main": "es5/index.js",
+  "main": "index.js",
   "scripts": {
     "test": "node_modules/.bin/ava --verbose --serial test/*-test.js",
     "pretest": "npm run compile",
