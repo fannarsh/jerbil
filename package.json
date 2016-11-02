@@ -6,7 +6,6 @@
   "scripts": {
     "test": "node_modules/.bin/ava --verbose --serial test/*-test.js",
     "pretest": "npm run compile",
-    "postinstall": "npm run compile",
     "compile": "babel -d es5/ jerbil.js spec.js"
   },
   "author": "",
@@ -18,6 +17,7 @@
   },
   "devDependencies": {
     "ava": "^0.12.0",
+    "babel-cli": "^6.18.0",
     "babel-core": "^6.5.2",
     "bluebird": "^3.3.3"
   },
