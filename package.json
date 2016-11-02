@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node_modules/.bin/ava --verbose --serial test/*-test.js",
     "pretest": "npm run compile",
+    "postinstall": "npm run compile",
     "compile": "babel -d es5/ jerbil.js spec.js"
   },
   "author": "",
