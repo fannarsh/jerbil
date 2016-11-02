@@ -1,6 +1,6 @@
 'use strict'
 
-let msgpack = require('msgpack')
+let msgpack = require('msgpack-lite')
 let yaml = require('js-yaml')
 let CRLF = new Buffer('\r\n')
 
@@ -8,12 +8,12 @@ module.exports = {
   NOT_FOUND: new Buffer('NOT_FOUND\r\n'),
   FOUND: Buffer.concat([
     new Buffer('FOUND 1 9\r\n'),
-    msgpack.pack('greeting'),
+    msgpack.encode('greeting'),
     CRLF
   ]),
   FOUND_COMPLEX: Buffer.concat([
     new Buffer('FOUND 3 15\r\n'),
-    msgpack.pack({a: 10, b: '20', c: [1,2,3]}),
+    msgpack.encode({a: 10, b: '20', c: [1,2,3]}),
     CRLF
   ]),
 
@@ -52,7 +52,7 @@ module.exports = {
 
   RESERVED: Buffer.concat([
     new Buffer('RESERVED 1 9\r\n'),
-    msgpack.pack('greeting'),
+    msgpack.encode('greeting'),
     CRLF
   ]),
   RESERVED_RAW: Buffer.concat([

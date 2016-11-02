@@ -1,14 +1,15 @@
 'use strict'
 
 import net from 'net'
-import msgpack from 'msgpack'
+import EventEmitter from 'events'
+import msgpack from 'msgpack-lite'
 import yaml from 'js-yaml'
 import Queue from 'double-ended-queue'
 import {commandSpecs, responseSpecs} from './spec'
 
 const CRLF = new Buffer('\r\n')
 
-export class Generic extends process.EventEmitter {
+export class Generic extends EventEmitter {
   constructor(port, host) {
     super()
     this.port = port || 11300
@@ -88,7 +89,7 @@ export class Generic extends process.EventEmitter {
       } else if (this.raw) {
         responseArgs.push(body)
       } else {
-        responseArgs.push(msgpack.unpack(body))
+        responseArgs.push(msgpack.decode(body))
       }
 
       // Advance separator index for continuing batch processing
@@ -108,7 +109,7 @@ export class Generic extends process.EventEmitter {
 
     if (command === 'put') {
       // Message must have a body
-      let body = this.raw ? new Buffer(args.pop()) : msgpack.pack(args.pop())
+      let body = this.raw ? new Buffer(args.pop()) : msgpack.encode(args.pop())
       let head = new Buffer(`${args.join(' ')} ${body.length}`)
       message = Buffer.concat([head, CRLF, body, CRLF])
     } else {

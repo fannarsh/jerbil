@@ -2,7 +2,7 @@
 
 let net = require('net')
 let bluebird = require('bluebird')
-let msgpack = require('msgpack')
+let msgpack = require('msgpack-lite')
 let yaml = require('js-yaml')
 let CRLF = new Buffer('\r\n')
 
@@ -49,5 +49,5 @@ exports.makeTeardown = function(scope) {
 }
 
 exports.getBody = function(data) {
-  return msgpack.unpack(data.slice(data.indexOf(CRLF) + CRLF.length, -CRLF.length))
+  return msgpack.decode(data.slice(data.indexOf(CRLF) + CRLF.length, -CRLF.length))
 }
